@@ -101,8 +101,9 @@ vim.g.have_nerd_font = true
 -- Make line numbers default
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
 vim.opt.relativenumber = true
+-- Show both relative and absolute line numbers
+vim.opt.statuscolumn = '%s%C%2{&rnu?v:relnum:""} %{&nu?" ".v:lnum:""} '
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -417,6 +418,15 @@ require('lazy').setup({
     end,
   },
 
+  -- {
+  --   'jay-babu/mason-nvim-dap.nvim',
+  --   opts = function(_, opts)
+  --     if type(opts.ensure_installed) == 'table' then
+  --       vim.list_extend(opts.ensure_installed, { 'javatest', 'javadbg' })
+  --     end
+  --   end,
+  -- },
+
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
     dependencies = {
@@ -432,6 +442,173 @@ require('lazy').setup({
       -- `neodev` configures Lua LSP for your Neovim config, runtime and plugins
       -- used for completion, annotations and signatures of Neovim apis
       { 'folke/neodev.nvim', opts = {} },
+
+      -- {
+      --   'mfussenegger/nvim-jdtls',
+      --   opts = {
+      --     -- configure jdtls and attach to Java ft
+      --     setup = {
+      --       jdtls = function(_, opts)
+      --         -- Determine OS
+      --         if vim.fn.has 'mac' == 1 then
+      --           CONFIG = 'mac'
+      --         elseif vim.fn.has 'unix' == 1 then
+      --           CONFIG = 'linux'
+      --         else
+      --           print 'Unsupported system'
+      --         end
+
+      --         local mason_registry = require 'mason-registry'
+      --         local jdtls_pkg = mason_registry.get_package 'jdtls'
+      --         local jdtls_path = jdtls_pkg:get_install_path()
+      --         local jdtls_bin = jdtls_path .. '/bin/jdtls'
+
+      --         local bundles = {}
+
+      --         if mason_registry.has_package 'java-test' and mason_registry.has_package 'java-debug-adapter' then
+      --           -- jdtls tools configuration for debugging support
+      --           local java_test_pkg = mason_registry.get_package 'java-test'
+      --           local java_test_path = java_test_pkg:get_install_path()
+
+      --           local java_dbg_pkg = mason_registry.get_package 'java-debug-adapter'
+      --           local java_dbg_path = java_dbg_pkg:get_install_path()
+
+      --           local jar_patterns = {
+      --             java_dbg_path .. '/extension/server/com.microsoft.java.debug.plugin-*.jar',
+      --             java_test_path .. '/extension/server/*.jar',
+      --           }
+
+      --           for _, jar_pattern in ipairs(jar_patterns) do
+      --             for _, bundle in ipairs(vim.split(vim.fn.glob(jar_pattern), '\n')) do
+      --               table.insert(bundles, bundle)
+      --             end
+      --           end
+      --         end
+
+      --         local extendedClientCapabilities = vim.tbl_deep_extend('force', require('jdtls').extendedClientCapabilities, {
+      --           resolveAdditionalTextEditsSupport = true,
+      --           progressReportProvider = false,
+      --         })
+
+      --         local function print_test_results(items)
+      --           if #items > 0 then
+      --             vim.cmd [[Trouble quickfix]]
+      --           else
+      --             vim.cmd [[TroubleClose quickfix]]
+      --           end
+      --         end
+
+      --         vim.api.nvim_create_autocmd('FileType', {
+      --           pattern = 'java',
+      --           callback = function()
+      --             -- Find root of project
+      --             local root_markers = { '.git', 'mvnw', 'gradlew', 'pom.xml', 'build.gradle' }
+      --             local root_dir = require('jdtls.setup').find_root(root_markers)
+      --             if root_dir == '' then
+      --               return
+      --             end
+      --             local workspace_folder = '/tmp/nvim/jdtls/' .. vim.fn.fnamemodify(root_dir, ':p:h:t')
+
+      --             local jdtls = require 'jdtls'
+      --             local jdtls_config = vim.tbl_deep_extend('force', opts, {
+      --               on_attach = require('lazyvim.util').on_attach(function(client, buffer)
+      --                 -- custom keymaps
+      --                 vim.keymap.set('n', '<leader>co', function()
+      --                   require('jdtls').organize_imports()
+      --                 end, { buffer = buffer, desc = 'Organize Imports' })
+      --                 vim.keymap.set('n', '<leader>ct', function()
+      --                   require('jdtls').pick_test { bufnr = buffer, after_test = print_test_results }
+      --                 end, { buffer = buffer, desc = 'Run Test' })
+      --                 -- require('jdtls').setup_dap { hotcodereplace = 'auto' }
+      --                 -- require('jdtls.dap').setup_dap_main_class_configs()
+      --                 -- require('jdtls.setup').add_commands()
+      --               end),
+      --               cmd = {
+      --                 jdtls_bin,
+      --                 '-data',
+      --                 workspace_folder,
+      --                 '--jvm-arg=-Xms2G',
+      --               },
+      --               settings = {
+      --                 java = {
+      --                   configuration = {
+      --                     updateBuildConfiguration = 'automatic',
+      --                   },
+      --                   codeGeneration = {
+      --                     toString = {
+      --                       template = '${object.className}{${member.name()}=${member.value}, ${otherMembers}}',
+      --                     },
+      --                     useBlocks = true,
+      --                   },
+      --                   completion = {
+      --                     favoriteStaticMembers = {
+      --                       'org.assertj.core.api.Assertions.*',
+      --                       'org.junit.Assert.*',
+      --                       'org.junit.Assume.*',
+      --                       'org.junit.jupiter.api.Assertions.*',
+      --                       'org.junit.jupiter.api.Assumptions.*',
+      --                       'org.junit.jupiter.api.DynamicContainer.*',
+      --                       'org.junit.jupiter.api.DynamicTest.*',
+      --                       'org.mockito.Mockito.*',
+      --                       'org.mockito.ArgumentMatchers.*',
+      --                       'org.mockito.Answers.*',
+      --                     },
+      --                     importOrder = {
+      --                       '#',
+      --                       'java',
+      --                       'javax',
+      --                       'org',
+      --                       'com',
+      --                     },
+      --                   },
+      --                   contentProvider = { preferred = 'fernflower' },
+      --                   eclipse = {
+      --                     downloadSources = true,
+      --                   },
+      --                   flags = {
+      --                     allow_incremental_sync = true,
+      --                     server_side_fuzzy_completion = true,
+      --                   },
+      --                   implementationsCodeLens = {
+      --                     enabled = false, --Don"t automatically show implementations
+      --                   },
+      --                   inlayHints = {
+      --                     parameterNames = { enabled = 'literals' },
+      --                   },
+      --                   maven = {
+      --                     downloadSources = true,
+      --                   },
+      --                   referencesCodeLens = {
+      --                     enabled = false, --Don"t automatically show references
+      --                   },
+      --                   references = {
+      --                     includeDecompiledSources = true,
+      --                   },
+      --                   saveActions = {
+      --                     organizeImports = true,
+      --                   },
+      --                   signatureHelp = { enabled = true },
+      --                   sources = {
+      --                     organizeImports = {
+      --                       starThreshold = 9999,
+      --                       staticStarThreshold = 9999,
+      --                     },
+      --                   },
+      --                 },
+      --               },
+      --               init_options = {
+      --                 extendedClientCapabilities = extendedClientCapabilities,
+      --                 bundles = bundles,
+      --               },
+      --             })
+      --             jdtls.start_or_attach(jdtls_config)
+      --           end,
+      --         })
+      --         return true
+      --       end,
+      --     },
+      --   },
+      -- },
     },
     config = function()
       -- Brief aside: **What is LSP?**
@@ -624,6 +801,7 @@ require('lazy').setup({
         'debugpy', -- debugger
         'black', -- formatter
         'isort', -- organize imports
+        -- 'jdtls', -- java
         -- 'bashls',
         -- 'dockerls',
         -- 'jsonls',
@@ -804,7 +982,7 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'murphy'
+      vim.cmd.colorscheme 'lunaperche'
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
@@ -869,6 +1047,13 @@ require('lazy').setup({
         'vimdoc',
         'python',
         'json',
+        'yaml',
+        'java',
+        'gitcommit',
+        'gitignore',
+        'gitattributes',
+        'git_rebase',
+        'git_config',
       },
       -- Autoinstall languages that are not installed
       auto_install = true,
@@ -899,6 +1084,25 @@ require('lazy').setup({
       --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
       --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
       --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    end,
+  },
+  {
+    'nvim-treesitter/nvim-treesitter-context',
+    config = function()
+      require('treesitter-context').setup {
+        enable = true, -- Enable this plugin (Can be enabled/disabled later via commands)
+        max_lines = 10, -- How many lines the window should span. Values <= 0 mean no limit.
+        min_window_height = 0, -- Minimum editor window height to enable context. Values <= 0 mean no limit.
+        line_numbers = true,
+        multiline_threshold = 20, -- Maximum number of lines to show for a single context
+        trim_scope = 'outer', -- Which context lines to discard if `max_lines` is exceeded. Choices: 'inner', 'outer'
+        mode = 'cursor', -- Line used to calculate context. Choices: 'cursor', 'topline'
+        -- Separator between context and content. Should be a single character string, like '-'.
+        -- When separator is set, the context will only show up when there are at least 2 lines above cursorline.
+        separator = nil,
+        zindex = 20, -- The Z-index of the context window
+        on_attach = nil, -- (fun(buf: integer): boolean) return false to disable attaching
+      }
     end,
   },
 
