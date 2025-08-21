@@ -90,6 +90,11 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+vim.opt.tabstop = 4
+vim.opt.expandtab = true
+vim.opt.softtabstop = 4
+vim.opt.shiftwidth = 4
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -240,7 +245,7 @@ vim.opt.rtp:prepend(lazypath)
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-  'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  -- 'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -289,18 +294,28 @@ require('lazy').setup({
 
   { -- Useful plugin to show you pending keybinds.
     'folke/which-key.nvim',
-    event = 'VimEnter', -- Sets the loading event to 'VimEnter'
+    -- event = 'VimEnter', -- Sets the loading event to 'VimEnter'
+    event = 'VeryLazy',
+    opts = { sort = { 'group', 'alphanum' } },
+    keys = {
+      {
+        '<leader>?',
+        function()
+          require('which-key').show { global = false }
+        end,
+        desc = 'Buffer Local Keymaps (which-key)',
+      },
+    },
     config = function() -- This is the function that runs, AFTER loading
-      require('which-key').setup()
-
+      -- require('which-key').setup()
       -- Document existing key chains
       require('which-key').add {
         { '<leader>c', group = '[C]ode' },
-        { '<leader>d', group = '[D]ocument' },
+        { '<leader>d', group = '[D]ocument/[D]ebug' },
         { '<leader>r', group = '[R]ename' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>w', group = '[W]orkspace' },
-        { '<leader>t', group = '[T]oggle' },
+        -- { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       }
     end,
@@ -318,6 +333,7 @@ require('lazy').setup({
     event = 'VimEnter',
     branch = '0.1.x',
     dependencies = {
+      'nvim-telescope/telescope-live-grep-args.nvim',
       'nvim-lua/plenary.nvim',
       { -- If encountering errors, see telescope-fzf-native README for installation instructions
         'nvim-telescope/telescope-fzf-native.nvim',
@@ -379,6 +395,7 @@ require('lazy').setup({
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
+      pcall(require('telescope').load_extension, 'live_grep_args')
 
       -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
@@ -387,7 +404,8 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      -- vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      vim.keymap.set('n', '<leader>sg', require('telescope').extensions.live_grep_args.live_grep_args, { desc = '[S]earch by [G]rep]' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
@@ -418,6 +436,249 @@ require('lazy').setup({
     end,
   },
 
+  {
+    'nvim-neotest/neotest',
+    dependencies = {
+      'nvim-neotest/nvim-nio',
+      'nvim-lua/plenary.nvim',
+      'antoinemadec/FixCursorHold.nvim',
+      'nvim-treesitter/nvim-treesitter',
+      'nvim-neotest/neotest-python',
+    },
+    config = function()
+      local neotest = require 'neotest'
+      neotest.setup {
+        adapters = {
+          require 'neotest-python' {
+            dap = { justMyCode = false },
+            args = { '--log-level', 'DEBUG' },
+            runner = 'pytest',
+          },
+        },
+      }
+
+      -- get neotest namespace (api call creates or returns namespace)
+      local neotest_ns = vim.api.nvim_create_namespace 'neotest'
+      vim.diagnostic.config({
+        virtual_text = {
+          format = function(diagnostic)
+            local message = diagnostic.message:gsub('\n', ' '):gsub('\t', ' '):gsub('%s+', ' '):gsub('^%s+', '')
+            return message
+          end,
+        },
+      }, neotest_ns)
+
+      require('which-key').add {
+        { '<leader>t', group = '[T]est' },
+      }
+
+      vim.keymap.set(
+        'n',
+        '<Leader>tr',
+        ':lua require("neotest").run.run({vim.loop.cwd(), extra_args = {"-race"}})<CR> <BAR> :lua require("neotest").summary.toggle()<CR>',
+        { noremap = true, silent = true, desc = '[T]est: [R]un Tests and Open Summary' }
+      )
+
+      vim.keymap.set(
+        'n',
+        '<Leader>tt',
+        ':lua require("neotest").run.run({vim.loop.cwd(), extra_args = {"-race"}})<CR> <BAR> ',
+        { desc = '[T]est: Re-Run All [T]ests' }
+      )
+
+      vim.keymap.set('n', '<Leader>ts', function()
+        neotest.summary.toggle()
+      end, { desc = '[T]est: [S]ummary' })
+
+      vim.keymap.set('n', '<Leader>tc', ':on<CR>', { noremap = true, silent = true, desc = '[T]est: [C]lose' })
+
+      vim.keymap.set('n', '<Leader>to', function()
+        neotest.output_panel.toggle()
+      end, { desc = '[T]est: Toggle [O]utput Panel' })
+
+      vim.keymap.set('n', '<Leader>tw', function()
+        neotest.watch.toggle()
+      end, { desc = '[T]est: Toggle [W]atching Tests' })
+
+      vim.keymap.set('n', '<Leader>tp', function()
+        neotest.run.stop()
+      end, { desc = '[T]est: Sto[p] Neotest' })
+
+      vim.keymap.set('n', '<Leader>ta', function()
+        neotest.run.attach()
+      end, { desc = '[T]est: [A]ttach to Nearest Test' })
+
+      vim.keymap.set('n', '<Leader>td', function()
+        neotest.run.run { strategy = 'dap' }
+      end, { desc = '[T]est: [D]ebug Nearest Test' })
+    end,
+  },
+
+  {
+    'folke/lazydev.nvim',
+    ft = 'lua', -- only load on lua files
+    opts = {
+      library = {
+        -- See the configuration section for more details
+        -- Load luvit types when the `vim.uv` word is found
+        { path = 'luvit-meta/library', words = { 'vim%.uv' } },
+      },
+    },
+  },
+  { 'Bilal2453/luvit-meta', lazy = true }, -- optional `vim.uv` typings
+  { -- optional completion source for require statements and module annotations
+    'hrsh7th/nvim-cmp',
+    opts = function(_, opts)
+      opts.sources = opts.sources or {}
+      table.insert(opts.sources, {
+        name = 'lazydev',
+        group_index = 0, -- set group index to 0 to skip loading LuaLS completions
+      })
+    end,
+  },
+
+  { 'jay-babu/mason-nvim-dap.nvim' },
+
+  {
+    'mfussenegger/nvim-dap',
+    dependencies = {
+      'rcarriga/nvim-dap-ui',
+      'nvim-neotest/nvim-nio',
+      'williamboman/mason.nvim',
+      'jay-babu/mason-nvim-dap.nvim',
+      'mfussenegger/nvim-dap-python',
+      'theHamsta/nvim-dap-virtual-text',
+    },
+    config = function()
+      local dap = require 'dap'
+      local dapui = require 'dapui'
+      local dappy = require 'dap-python'
+      local dapvt = require 'nvim-dap-virtual-text'
+      local masonnvimdap = require 'mason-nvim-dap'
+
+      masonnvimdap.setup {
+        automatic_setup = true,
+        handlers = {},
+        ensure_installed = { 'python' },
+      }
+
+      dapui.setup()
+
+      dap.listeners.before.attach.dapui_config = function()
+        dapui.open()
+      end
+      dap.listeners.before.launch.dapui_config = function()
+        dapui.open()
+      end
+      dap.listeners.before.event_terminated.dapui_config = function()
+        dapui.close()
+      end
+      dap.listeners.before.event_exited.dapui_config = function()
+        dapui.close()
+      end
+
+      require('which-key').add {
+        { '<leader>dr', group = '[D]ebug: [Run]' },
+        { '<leader>ds', group = '[D]ebug: [S]tep' },
+        { '<leader>db', group = '[D]ebug: [B]reakpoint' },
+      }
+
+      vim.keymap.set('n', '<leader>dru', dap.run_to_cursor, { desc = '[D]ebug: [R]un to C[u]rsor' })
+      vim.keymap.set('n', '<leader>drm', dappy.test_method, { desc = '[D]ebug: [R]un [M]ethod' })
+      vim.keymap.set('n', '<leader>drc', dappy.test_class, { desc = '[D]ebug: [R]un [C]lass' })
+      vim.keymap.set('v', '<leader>drs', dappy.debug_selection, { desc = '[D]ebug: [R]un [S]election' })
+
+      vim.keymap.set('n', '<leader>dsc', dap.continue, { desc = '[D]ebug: [S]tart/[C]ontinue' })
+      vim.keymap.set('n', '<leader>dsi', dap.step_into, { desc = '[D]ebug: [S]tep [I]nto' })
+      vim.keymap.set('n', '<leader>dso', dap.step_over, { desc = '[D]ebug: [S]tep [O]ver' })
+      vim.keymap.set('n', '<leader>dsu', dap.step_out, { desc = '[D]ebug: [S]tep O[u]t' })
+      vim.keymap.set('n', '<leader>dsb', dap.step_back, { desc = '[D]ebug: [S]tep [B]ack' })
+      vim.keymap.set('n', '<leader>dsr', dap.restart, { desc = '[D]ebug: [S]tep [R]estart' })
+
+      vim.keymap.set('n', '<leader>dt', dap.terminate, { desc = '[D]ebug: [T]erminate' })
+      vim.keymap.set('n', '<leader>dd', dapui.toggle, { desc = '[D]ebug: Toggle [D]ebugger UI' })
+      vim.keymap.set('n', '<leader>dR', dap.repl.open, { desc = '[D]ebug: Open in [R]EPL' })
+
+      vim.keymap.set('n', '<leader>db', dap.toggle_breakpoint, { desc = '[D]ebug: Toggle [B]reakpoint' })
+      vim.keymap.set('n', '<leader>dc', function()
+        dap.set_breakpoint(vim.fn.input 'Breakpoint condition: ')
+      end, { desc = '[D]ebug: Set Breakpoint [C]ondition' })
+
+      -- DAP UI defaults:
+      --   edit: e
+      --   expand: <CR> or left click
+      --   open: o
+      --   remove: d
+      --   repl: r
+      --   toggle: t
+      -- vim.keymap.set('n', '<leader>dx', dapui.expand, { desc = '[D]ebug: E[x]pand' })
+      -- vim.keymap.set('n', '<leader>de', dapui.edit, { desc = '[D]ebug: [E]dit' })
+      -- vim.keymap.set('n', '<leader>dz', dapui.remove, { desc = '[D]ebug: [Z] Remove Watch' })
+      -- vim.keymap.set('n', '<leader>dp', dapui.open, { desc = '[D]ebug: O[p]en' })
+      -- vim.keymap.set('n', '<leader>dl', dapui.repl, { desc = '[D]ebug: Send to REP[L]' })
+
+      dapvt.setup {
+        -- enabled = true,
+        -- enabled_commands = true,
+        -- highlight_changed_variables = true,
+        -- highlight_new_as_changed = true,
+        commented = true,
+        -- only_first_definition = true,
+        -- all_references = false,
+        -- clear_on_continue = false,
+        -- More: https://github.com/theHamsta/nvim-dap-virtual-text
+      }
+
+      dap.adapters.python = function(cb, config)
+        if config.request == 'attach' then
+          ---@diagnostic disable-next-line: undefined-field
+          local port = (config.connect or config).port
+          ---@diagnostic disable-next-line: undefined-field
+          local host = (config.connect or config).host or '127.0.0.1'
+          cb {
+            type = 'server',
+            port = assert(port, '`connect.port` is required for a python `attach` configuration'),
+            host = host,
+            options = {
+              source_filetype = 'python',
+            },
+          }
+        else
+          cb {
+            type = 'executable',
+            command = vim.fn.stdpath 'data' .. '/mason/bin/debugpy-adapter',
+            options = {
+              source_filetype = 'python',
+            },
+          }
+        end
+      end
+      dap.configurations.python = {
+        {
+          -- The first three options are required by nvim-dap
+          type = 'python', -- the type here established the link to the adapter definition: `dap.adapters.python`
+          request = 'launch',
+          name = 'Launch file',
+
+          -- Options below are for debugpy, see https://github.com/microsoft/debugpy/wiki/Debug-configuration-settings for supporte d options
+
+          program = '${file}', -- This configuration will launch the current file if used.
+          pythonPath = function()
+            -- debugpy supports launching an application with a different interpreter then the one used to launch debugpy itself.
+            -- The code below looks for a `venv` or `.venv` folder in the current directly and uses the python within.
+            -- You could adapt this - to for example use the `VIRTUAL_ENV` environment variable.
+            local venv = os.getenv 'VIRTUAL_ENV'
+            if venv then
+              return venv .. '/bin/python'
+            else
+              return '/usr/bin/python'
+            end
+          end,
+        },
+      }
+    end, -- DAP
+  },
+
   -- {
   --   'jay-babu/mason-nvim-dap.nvim',
   --   opts = function(_, opts)
@@ -441,7 +702,9 @@ require('lazy').setup({
 
       -- `neodev` configures Lua LSP for your Neovim config, runtime and plugins
       -- used for completion, annotations and signatures of Neovim apis
-      { 'folke/neodev.nvim', opts = {} },
+      { 'folke/neodev.nvim', opts = {
+        library = { plugins = { 'nvim-dap-ui' }, types = true },
+      } },
 
       -- {
       --   'mfussenegger/nvim-jdtls',
@@ -767,6 +1030,29 @@ require('lazy').setup({
         -- tsserver = {},
         --
 
+        pylsp = {
+          settings = {
+            pylsp = {
+              -- configurationSource = { 'flake8' },
+              plugins = {
+                -- formatters
+                black = { line_length = 120, skip_string_normalization = true },
+                pyls_isort = { enabled = true },
+                -- linters
+                flake8 = { enabled = false, line_length = 120 },
+                mccabe = { enabled = true },
+                pylint = { enabled = false, executable = 'pylint' },
+                pyflakes = { enabled = false },
+                pycodestyle = { enabled = false },
+                -- type checker
+                pylsp_mypy = { enabled = true },
+                -- auto-completion options
+                jedi_completion = { enabled = true, fuzzy = true, resolve_at_most = 5 },
+              },
+            },
+          },
+        },
+
         lua_ls = {
           -- cmd = {...},
           -- filetypes = { ...},
@@ -796,11 +1082,13 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
-        'pyright', -- LSP for python
-        'ruff', -- linter for python (includes flake8, pep8, etc.)
+        -- 'pyright', -- LSP for python
+        -- 'ruff', -- linter for python (includes flake8, pep8, etc.)
         'debugpy', -- debugger
         'black', -- formatter
         'isort', -- organize imports
+        'pylsp', -- Python
+        'google-java-format', -- formatter
         -- 'jdtls', -- java
         -- 'bashls',
         -- 'dockerls',
@@ -851,11 +1139,20 @@ require('lazy').setup({
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
-        python = { 'isort', 'black' },
+        -- python = { 'isort', 'black' },
         --
         -- You can use a sub-list to tell conform to run *until* a formatter
         -- is found.
         -- javascript = { { "prettierd", "prettier" } },
+      },
+      -- Optional: Define formatter-specific settings
+      formatters = {
+        stylua = {
+          prepend_args = { '--indent-type', 'Spaces', '--indent-width', '2' },
+        },
+        black = {
+          prepend_args = { '--line-length', '88' },
+        },
       },
     },
   },
@@ -1102,6 +1399,16 @@ require('lazy').setup({
         separator = nil,
         zindex = 20, -- The Z-index of the context window
         on_attach = nil, -- (fun(buf: integer): boolean) return false to disable attaching
+      }
+    end,
+  },
+
+  {
+    'Lingnik/shrepl.nvim',
+    config = function()
+      require('shrepl').setup {
+        reselection_enabled = true,
+        capture_stderr_separately = true,
       }
     end,
   },
